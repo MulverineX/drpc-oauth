@@ -1,0 +1,12 @@
+{
+  "name": "drpc-oauth",
+  "version": "0.0.1",
+  "description": "Interacts with Discord's undocumented RPC-over-OAuth API.",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "MulverineX",
+  "license": "CC0"
+}
