@@ -18,7 +18,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
   const auth_link = RPC.getAuthLink(new URL('http://localhost:8080/callback'));
 
-  console.log(`Please authorize and add code to environment. ${auth_link}`);
+  console.log(`Please begin authorization. ${auth_link}`);
 
   const auth_code: string = await new Promise((resolve) => {
     http.createServer((request, response) => {
@@ -29,7 +29,11 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
     }).listen('8080')
   })
 
+  console.log('> Authorization started.')
+
   await RPC.authorize(process.env.CLIENT_SECRET, auth_code);
+
+  console.log('> Authorization successful.')
 
   const activity = await RPC.setActivity({
     type: ActivityType.Playing,
@@ -60,9 +64,15 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
     ],
   });
 
+  console.log('> Activity sent, 30 seconds until clear.')
+
   await sleep(1000*30); // wait 30 seconds
 
   // await RPC.clearActivity(activity)
 
   await RPC.clearAll();
+
+  console.log('> Activity cleared.')
+
+  process.exit()
 })()

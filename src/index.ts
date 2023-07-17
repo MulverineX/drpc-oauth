@@ -191,12 +191,16 @@ export default class DiscordRPC {
       session_token = new_session_token
     }
 
-    setTimeout(() => this.setActivity(activities, session_token), 1000*60*30) // Wait 30 minutes to renew
+    setTimeout(() => {
+      if (this.sessions.has(session_token)) this.setActivity(activities, session_token)
+    }, 1000*60*30) // Wait 30 minutes to renew
 
     return session_token
   }
 
-  async clearActivity(session_token: SessionToken) { // TODO: fix; it should be working but isn't
+  async clearActivity(session_token: SessionToken) {
+    this.sessions.delete(session_token)
+
     await fetch(`${API}/users/@me/headless-sessions/delete`, {
       method: 'POST',
       body: JSON.stringify({ token: session_token }),
