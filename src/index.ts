@@ -3,30 +3,32 @@ const API = 'https://discord.com/api/v10';
 export enum ActivityType {
   /**
    * Member List: `Playing **_** 🗎`
-   * 
+   *
    * Profile: `PLAYING A GAME`
    */
   Playing,
   /** 
    * Member List: `Playing **_** 🗎`
-   * 
-   * Profile: `LIVE ON TWITCH` (yes)
-   * 
-   * Changes status from Online to Streaming (Purple icon).
+   *
+   * Profile:
+   * - `LIVE ON TWITCH` (yes)
+   * - Replaces the first line (bold) with the first line of the description, moves up the second line, displays the large image tooltip.
    */
   Streaming,
   /**
    * Member List: `Listening to **_** 🗎`
-   * 
-   * Profile: `LISTENING TO SPOTIFY` (yes) // TODO: Test
-   * 
-   * // TODO: Test timestamps
+   *
+   * Profile: 
+   * - `LISTENING TO _`
+   * - Replaces the first line (bold) with the first line of the description, moves up the second line, displays the large image tooltip.
    */
   Listening,
   /**
    * Member List: `Watching **_** 🗎`
-   * 
-   * Profile: `WATCHING ...` // TODO: Test
+   *
+   * Profile:
+   * - `WATCHING _`
+   * - Replaces the first line (bold) with the first line of the description, moves up the second line, displays the large image tooltip.
    */
   Watching,
   /**
@@ -34,9 +36,11 @@ export enum ActivityType {
    */
   Custom,
   /**
-   * Member List: `Competing **_** 🗎` // TODO: Test
-   * 
-   * Profile: `COMPETING ...` // TODO: Test
+   * Member List: `Competing in **_** 🗎`
+   *
+   * Profile:
+   * - `COMPETING IN _`
+   * - Replaces the first line (bold) with the first line of the description, moves up the second line, displays the large image tooltip.
    */
   Competing,
 }
@@ -68,13 +72,13 @@ export type Activity = {
    * Optional. Whether to use "Playing _", "Listening to _", etc. Defaults to `ActivityType.Playing`.
    */
   type?: ActivityType,
-  platform?: 'desktop' | 'mobile' | 'web',
+  platform?: 'desktop' | 'ios' | 'android',
   description?: string | [string, string],
   images?: {
     large: ActivityImage,
     small?: ActivityImage,
   },
-  timestamps?: { // TODO: Make this less dumb to use
+  timestamps?: { // TODO: Make this less dumb to use & do testing with different types
     start: number,
     end?: number
   },
@@ -128,7 +132,7 @@ export default class DiscordRPC {
       }
     })
 
-    console.log(await res.json());
+    this.user_token = (await res.json()).access_token;
   }
 
   async setActivity(activity: Activity | Activity[]) {
@@ -141,10 +145,12 @@ export default class DiscordRPC {
         activities: activities.map(a => ({
           name: a.name,
           application_id: a.app_id || this.app_id,
-          type: `${a.type}`,
+          type: `${a.type || 0}`,
           platform: a.platform || 'desktop',
-          state: a.description ? (typeof a.description === 'string' ? a.description : a.description[0]) : '', // TODO: Test if these are needed
-          details: a.description && Array.isArray(a.description) ? a.description[1]: '',
+          ...(a.description ? {
+            state: (typeof a.description === 'string' ? a.description : a.description[0]),
+            details: Array.isArray(a.description) ? a.description[1]: '',
+          } : {}),
           assets: a.images ? {
             // @ts-ignore TODO: I don't know how to fix this crap
             large_image: a.images.large.key || a.images.large.url,
@@ -163,13 +169,11 @@ export default class DiscordRPC {
 
       headers: {
         "Authorization": `Bearer ${this.user_token}`,
-        "Content-Type": 'application/json'
-      }
-    })
+        "Content-Type": 'application/json',
+      },
+    });
 
     const json: { token: ActivityIdentifier } = (await res.json()) as any;
-
-    console.log(json);
   
     const identifier = json.token;
 
@@ -178,7 +182,7 @@ export default class DiscordRPC {
     return identifier;
   }
 
-  async clearActivity(identifier: ActivityIdentifier) {
+  async clearActivity(identifier: ActivityIdentifier) { // TODO: fix; it should be working but isn't
     await fetch(`${API}/users/@me/headless-sessions/delete`, {
       method: 'POST',
       body: JSON.stringify({ token: identifier }),
