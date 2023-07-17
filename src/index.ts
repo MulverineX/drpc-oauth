@@ -1,27 +1,4 @@
-import "dotenv/config";
-
-const API = "https://discord.com/api/v10";
-
-// TODO
-export async function getUserToken(code, redirect: string) {
-  const res = await fetch(`${API}/oauth2/token`, {
-    method: "POST",
-    body: new URLSearchParams({
-      client_id: process.env.CLIENT_ID as string,
-      client_secret: process.env.CLIENT_SECRET as string,
-      grant_type: "authorization_code",
-      code: code,
-      redirect_uri: redirect,
-    }),
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    }
-  })
-
-  const json = await res.json();
-
-  console.log(json);
-}
+const API = 'https://discord.com/api/v10';
 
 export enum ActivityType {
   /**
@@ -83,7 +60,10 @@ export type Activity = {
    * Display name of the app (does not have to match the discord dev panel).
    */
   name: string,
-  application_id: string,
+  /**
+   * Optional. Defaults to the primary application id.
+   */
+  app_id?: string,
   /**
    * Optional. Whether to use "Playing _", "Listening to _", etc. Defaults to `ActivityType.Playing`.
    */
@@ -103,24 +83,52 @@ export type Activity = {
 
 export type ActivityIdentifier = string;
 export default class DiscordRPC {
-  identifiers: ActivityIdentifier[]
+  redirect_handler?: URL
 
-  constructor(public user_token: string) {
-    // Running in node
-    if (typeof window === 'undefined') {
-      async function exitHandler() {
-        await this.clearAll();
-        process.exit();
+  user_token?: string
+
+  identifiers?: ActivityIdentifier[]
+
+  /**
+   * @param app_id Discord application to authorize under. Does not have to match the id used in activities.
+   */
+  constructor(public app_id: string) {}
+
+  /**
+   * @param redirect_handler OAuth redirect that will contain the finalization code URL param (Hint: this is your host).
+   * @returns OAuth URL to give to the user.
+   */
+  getAuthLink(redirect_handler: URL) {
+    this.redirect_handler = redirect_handler;
+
+    return new URL(`https://discord.com/oauth2/authorize?${new URLSearchParams({
+      client_id: this.app_id,
+      response_type: 'code',
+      scope: 'identify activities.write',
+      redirect_uri: `${redirect_handler}`,
+    })}`)
+  }
+
+  /**
+   * @param secret Discord application secret.
+   * @param code Finalization code from the redirect.
+   */
+  async authorize(app_secret: string, code: string) {
+    const res = await fetch(`${API}/oauth2/token`, {
+      method: 'POST',
+      body: new URLSearchParams({
+        client_id: this.app_id,
+        client_secret: app_secret,
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: `${this.redirect_handler}`,
+      }),
+      headers: {
+        "Content-Type": 'application/x-www-form-urlencoded'
       }
-      
-      process.on('SIGINT', exitHandler);
-      process.on('SIGUSR1', exitHandler);
-      process.on('SIGUSR2', exitHandler);
-      
-      process.on('uncaughtException', exitHandler);
-      
-      setInterval(() => { }, 0x7FFFFFFF) // stop node from exiting
-    }
+    })
+
+    console.log(await res.json());
   }
 
   async setActivity(activity: Activity | Activity[]) {
@@ -132,7 +140,7 @@ export default class DiscordRPC {
       body: JSON.stringify({
         activities: activities.map(a => ({
           name: a.name,
-          application_id: a.application_id,
+          application_id: a.app_id || this.app_id,
           type: `${a.type}`,
           platform: a.platform || 'desktop',
           state: a.description ? (typeof a.description === 'string' ? a.description : a.description[0]) : '', // TODO: Test if these are needed
@@ -155,35 +163,37 @@ export default class DiscordRPC {
 
       headers: {
         "Authorization": `Bearer ${this.user_token}`,
-        "Content-Type": "application/json"
+        "Content-Type": 'application/json'
       }
     })
-  
-    console.log(await res.clone().text());
-  
-    const identifier: ActivityIdentifier = (await res.json()).token;
 
-    this.identifiers.push(identifier)
+    const json: { token: ActivityIdentifier } = (await res.json()) as any;
+
+    console.log(json);
+  
+    const identifier = json.token;
+
+    this.identifiers?.push(identifier);
   
     return identifier;
   }
 
   async clearActivity(identifier: ActivityIdentifier) {
-    const res = await fetch(`${API}/users/@me/headless-sessions/delete`, {
-      method: "POST",
+    await fetch(`${API}/users/@me/headless-sessions/delete`, {
+      method: 'POST',
       body: JSON.stringify({ token: identifier }),
       headers: {
         "Authorization": `Bearer ${this.user_token}`,
-        "Content-Type": "application/json",
+        "Content-Type": 'application/json',
       },
-    })
-  
-    console.log(await res.text());
+    });
   }
 
   async clearAll() {
-    for await (const identifier of this.identifiers) {
-      await this.clearActivity(identifier);
+    if (this.identifiers) {
+      for await (const identifier of this.identifiers) {
+        await this.clearActivity(identifier);
+      } 
     }
   }
 }
