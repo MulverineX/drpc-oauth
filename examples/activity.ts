@@ -36,7 +36,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
     name: 'DRPC OAuth',
     description: [
       'Vibing',
-      'Got this awesome test of Discord\'s sick REST API for RPC'
+      'Got this awesome test of Discord\'s sick REST API for RPC.'
     ],
     images: {
       large: {
@@ -60,7 +60,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
     ],
   });
 
-  await sleep(1000*60); // wait 1 minute
+  await sleep(1000*30); // wait 30 seconds
 
   // await RPC.clearActivity(activity)
 

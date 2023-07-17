@@ -85,13 +85,13 @@ export type Activity = {
   buttons?: ActivityButton | [ActivityButton, ActivityButton],
 };
 
-export type ActivityIdentifier = string;
+export type SessionToken = string;
 export default class DiscordRPC {
   redirect_handler?: URL
 
   user_token?: string
 
-  identifiers?: ActivityIdentifier[]
+  sessions?: Map<SessionToken, Activity[]> = new Map()
 
   /**
    * @param app_id Discord application to authorize under. Does not have to match the id used in activities.
@@ -135,13 +135,17 @@ export default class DiscordRPC {
     this.user_token = (await res.json()).access_token;
   }
 
-  async setActivity(activity: Activity | Activity[]) {
+  async setActivity(activity: Activity | Activity[], old_session_token?: SessionToken) {
     const activities = Array.isArray(activity) ? activity : [activity];
 
     const res = await fetch(`${API}/users/@me/headless-sessions`, {
       method: 'POST',
 
       body: JSON.stringify({
+        ...(old_session_token ? {
+          token: old_session_token
+        } : {}),
+
         activities: activities.map(a => ({
           name: a.name,
           application_id: a.app_id || this.app_id,
@@ -173,19 +177,29 @@ export default class DiscordRPC {
       },
     });
 
-    const json: { token: ActivityIdentifier } = (await res.json()) as any;
-  
-    const identifier = json.token;
+    let session_token: string
 
-    this.identifiers?.push(identifier);
-  
-    return identifier;
+    if (old_session_token) {
+      session_token = old_session_token
+    } else {
+      const json: { token: SessionToken } = (await res.json()) as any;
+
+      const new_session_token = json.token;
+
+      this.sessions.set(new_session_token, activities)
+
+      session_token = new_session_token
+    }
+
+    setTimeout(() => this.setActivity(activities, session_token), 1000*60*30) // Wait 30 minutes to renew
+
+    return session_token
   }
 
-  async clearActivity(identifier: ActivityIdentifier) { // TODO: fix; it should be working but isn't
+  async clearActivity(session_token: SessionToken) { // TODO: fix; it should be working but isn't
     await fetch(`${API}/users/@me/headless-sessions/delete`, {
       method: 'POST',
-      body: JSON.stringify({ token: identifier }),
+      body: JSON.stringify({ token: session_token }),
       headers: {
         "Authorization": `Bearer ${this.user_token}`,
         "Content-Type": 'application/json',
@@ -194,10 +208,8 @@ export default class DiscordRPC {
   }
 
   async clearAll() {
-    if (this.identifiers) {
-      for await (const identifier of this.identifiers) {
-        await this.clearActivity(identifier);
-      } 
+    for await (const identifier of this.sessions.keys()) {
+      await this.clearActivity(identifier);
     }
   }
 }
