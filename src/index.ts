@@ -177,7 +177,7 @@ export default class DiscordRPC {
       },
     });
 
-    let session_token: string
+    let session_token: string;
 
     if (old_session_token) {
       session_token = old_session_token
@@ -186,20 +186,26 @@ export default class DiscordRPC {
 
       const new_session_token = json.token;
 
-      this.sessions.set(new_session_token, activities)
+      this.sessions.set(new_session_token, activities);
 
-      session_token = new_session_token
+      session_token = new_session_token;
     }
 
     setTimeout(() => {
-      if (this.sessions.has(session_token)) this.setActivity(activities, session_token)
+      if (this.sessions.has(session_token)) this.setActivity(activities, session_token);
     }, 1000*60*30) // Wait 30 minutes to renew
 
-    return session_token
+    return session_token;
+  }
+
+  async modifyActivity(session_token: SessionToken, activity: Activity | Activity[]) {
+    await this.clearActivity(session_token);
+
+    await this.setActivity(activity);
   }
 
   async clearActivity(session_token: SessionToken) {
-    this.sessions.delete(session_token)
+    this.sessions.delete(session_token);
 
     await fetch(`${API}/users/@me/headless-sessions/delete`, {
       method: 'POST',
